@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>DAO Vote</title>
+</head>
+<body>
+  <h2>DAO Vote</h2>
+
+  <button onclick="connect()">ウォレット接続</button>
+  <p id="address"></p>
+
+  <h3>投票</h3>
+  <select id="choice">
+    <option value="A">A</option>
+    <option value="B">B</option>
+  </select>
+
+  <br><br>
+  <button onclick="vote()">投票する</button>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+
+  <script>
+    let signer;
+    let userAddress;
+
+    const MESSAGE = `I vote in proposal_001
+Nonce: 12345`;
+
+    async function connect() {
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      await provider.send("eth_requestAccounts", []);
+      signer = provider.getSigner();
+      userAddress = await signer.getAddress();
+      document.getElementById("address").innerText = userAddress;
+    }
+
+    async function vote() {
+      const choice = document.getElementById("choice").value;
+      const signature = await signer.signMessage(MESSAGE);
+
+      const res = await fetch("https://script.google.com/macros/s/AKfycbwFW3K0cC1K_j2HncLbEdVshrao9J-jBsq3R1NsvclQm4jyQ6GdLG1RKBEP0_vgdiZ2/exec", {
+        method: "POST",
+        body: JSON.stringify({
+          address: userAddress,
+          signature: signature,
+          choice: choice
+        })
+      });
+
+      const data = await res.json();
+      alert(data.result);
+    }
+  </script>
+</body>
+</html>
