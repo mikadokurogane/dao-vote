@@ -4,10 +4,11 @@
   <meta charset="UTF-8">
   <title>DAO NFT 投票</title>
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
   <style>
-    body { font-family: sans-serif; max-width: 600px; margin: 30px auto; }
+    body { font-family: sans-serif; max-width: 700px; margin: 30px auto; }
     button { margin: 5px 0; padding: 8px 16px; }
-    #results { margin-top: 20px; padding: 10px; border: 1px solid #ccc; }
+    #chart_div { margin-top: 20px; width: 100%; height: 400px; }
   </style>
 </head>
 <body>
@@ -35,7 +36,8 @@
 </div>
 
 <h3>リアルタイム結果</h3>
-<div id="results">Loading...</div>
+<div id="results"></div>
+<div id="chart_div"></div>
 
 <script>
 let provider;
@@ -84,17 +86,39 @@ document.getElementById("voteButton").onclick = async () => {
   loadResults();
 };
 
+// Google Charts 初期化
+google.charts.load('current', {packages: ['corechart']});
+
 // リアルタイム結果取得
 async function loadResults() {
   try {
     const res = await fetch(SCRIPT_URL);
     const data = await res.json();
 
+    // テキスト表示
     let html = "";
     for (let key in data) {
       html += `${key}: ${data[key]}票<br>`;
     }
     document.getElementById("results").innerHTML = html;
+
+    // 棒グラフ用データ作成
+    const chartData = [['選択肢', '票数']];
+    for (let key in data) {
+      chartData.push([key, Number(data[key])]);
+    }
+
+    // グラフ描画
+    google.charts.setOnLoadCallback(() => {
+      const chart = new google.visualization.ColumnChart(document.getElementById('chart_div'));
+      chart.draw(google.visualization.arrayToDataTable(chartData), {
+        title: '投票結果',
+        legend: { position: 'none' },
+        vAxis: { minValue: 0 },
+        colors: ['#1f77b4']
+      });
+    });
+
   } catch(e) {
     document.getElementById("results").innerText = "結果を取得できません";
     console.error(e);
