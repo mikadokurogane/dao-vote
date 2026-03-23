@@ -24,17 +24,16 @@ button { margin:5px 0; }
 <canvas id="chart" width="400" height="200"></canvas>
 
 <script>
-const CONFIG = <?= config ?>;
+// GASテンプレート変数として展開
+var CONFIG = <?= html.config ?>;
 let signer, userAddress, chart;
 
-// 初期描画
 window.onload = () => {
   renderChoices();
   loadResults();
   setInterval(loadResults, 5000);
 };
 
-// 選択肢描画
 function renderChoices() {
   const select = document.getElementById("choice");
   select.innerHTML = "";
@@ -47,9 +46,8 @@ function renderChoices() {
   document.getElementById("proposal").innerText = CONFIG.proposal_id;
 }
 
-// MetaMask接続
 async function connectWallet() {
-  if(!window.ethereum){ alert("MetaMaskを入れてください"); return; }
+  if(!window.ethereum){ alert("MetaMask required"); return; }
   const provider = new ethers.providers.Web3Provider(window.ethereum);
   await provider.send("eth_requestAccounts", []);
   signer = provider.getSigner();
@@ -57,9 +55,8 @@ async function connectWallet() {
   document.getElementById("address").innerText = userAddress;
 }
 
-// 投票
 async function vote() {
-  if(!signer){ alert("ウォレット接続してください"); return; }
+  if(!signer){ alert("Connect wallet first"); return; }
   const choice = document.getElementById("choice").value;
   const signature = await signer.signMessage(CONFIG.message);
 
@@ -76,7 +73,6 @@ async function vote() {
   });
 }
 
-// 結果描画
 function loadResults() {
   fetch("?action=results")
     .then(r=>r.json())
