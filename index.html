@@ -2,85 +2,87 @@
 <html>
 <head>
 <meta charset="UTF-8">
+<title>DAO Voting</title>
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<title>DAO Voting</title>
 <style>
-  body { font-family: Arial, sans-serif; padding: 20px; }
-  select, button { font-size: 16px; margin: 5px 0; }
+body { font-family: sans-serif; padding: 20px; }
+button { margin-top: 10px; }
 </style>
 </head>
 <body>
+
 <h2>DAO Voting</h2>
-<button id="connect">Connect Wallet</button>
+<button onclick="connectWallet()">Connect Wallet</button>
 <p id="address">Not connected</p>
 
 <h3 id="proposal"></h3>
 <select id="choice"></select>
-<button id="vote">Vote</button>
+<button onclick="vote()">Vote</button>
 
 <h3>Results</h3>
 <canvas id="chart" width="400" height="200"></canvas>
 
 <script>
+const CONFIG = <?= JSON.stringify(config) ?>; // GASから直接渡された設定
+const API_URL = ''; // 空にしてGAS Webアプリ内で完結
+
 let signer, userAddress, chart;
-const CONFIG = JSON.parse(`<?= config ?>`);
-const GAS_URL = window.location.href;
+
+// 初期ロード
+window.addEventListener("load", async () => {
+  renderChoices();
+  await loadResults();
+  setInterval(loadResults, 5000);
+});
+
+// 選択肢描画
+function renderChoices() {
+  const select = document.getElementById("choice");
+  select.innerHTML = "";
+  CONFIG.choices.split(",").forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = c.trim();
+    opt.innerText = c.trim();
+    select.appendChild(opt);
+  });
+  document.getElementById("proposal").innerText = CONFIG.proposal_id;
+}
 
 // ウォレット接続
-document.getElementById("connect").onclick = async () => {
+async function connectWallet() {
   if (!window.ethereum) { alert("MetaMaskをインストールしてください"); return; }
   const provider = new ethers.providers.Web3Provider(window.ethereum);
   await provider.send("eth_requestAccounts", []);
   signer = provider.getSigner();
   userAddress = await signer.getAddress();
   document.getElementById("address").innerText = userAddress;
-};
-
-// 選択肢表示
-window.addEventListener("load", () => {
-  document.getElementById("proposal").innerText = CONFIG.proposal_id;
-  const select = document.getElementById("choice");
-  select.innerHTML = "";
-  if (CONFIG.choices) {
-    CONFIG.choices.split(",").forEach(c => {
-      const opt = document.createElement("option");
-      opt.value = c.trim();
-      opt.innerText = c.trim();
-      select.appendChild(opt);
-    });
-  }
-  loadResults();
-  setInterval(loadResults, 5000);
-});
+}
 
 // 投票
-document.getElementById("vote").onclick = async () => {
-  if (!signer) { alert("ウォレット接続してください"); return; }
+async function vote() {
+  if (!signer) { alert("ウォレットを接続してください"); return; }
   const choice = document.getElementById("choice").value;
   const signature = await signer.signMessage(CONFIG.message);
 
-  const res = await fetch(GAS_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ address: userAddress, choice, signature })
-  });
-  const data = await res.json();
-  alert(JSON.stringify(data));
-  loadResults();
-};
+  google.script.run.withSuccessHandler(res => {
+    alert(JSON.stringify(res));
+    loadResults();
+  }).doPost(JSON.stringify({ address: userAddress, choice, signature }));
+}
 
-// 結果取得
+// 結果取得 & グラフ描画
 async function loadResults() {
-  const res = await fetch(GAS_URL + "?action=results");
-  const data = await res.json();
-  const ctx = document.getElementById("chart").getContext("2d");
-  if (chart) chart.destroy();
-  chart = new Chart(ctx, {
-    type: 'bar',
-    data: { labels: Object.keys(data), datasets: [{ label: "Votes", data: Object.values(data) }] }
-  });
+  google.script.run.withSuccessHandler(data => {
+    const ctx = document.getElementById("chart").getContext("2d");
+    if (chart) chart.destroy();
+    chart = new Chart(ctx, {
+      type: "bar",
+      data: { labels: Object.keys(data), datasets: [{ label: "Votes", data: Object.values(data) }] }
+    });
+  }).getResults();
 }
 </script>
+
 </body>
 </html>
