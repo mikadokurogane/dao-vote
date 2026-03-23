@@ -2,12 +2,15 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>DAO Voting</title>
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<title>DAO Voting</title>
+<style>
+  body { font-family: Arial, sans-serif; padding: 20px; }
+  select, button { font-size: 16px; margin: 5px 0; }
+</style>
 </head>
 <body>
-
 <h2>DAO Voting</h2>
 <button id="connect">Connect Wallet</button>
 <p id="address">Not connected</p>
@@ -20,17 +23,9 @@
 <canvas id="chart" width="400" height="200"></canvas>
 
 <script>
-var CONFIG = <?= config ?>; // GAS から渡された config
-
 let signer, userAddress, chart;
-
-// 初期ロード
-window.addEventListener("load", async () => {
-  renderChoices();
-  renderProposal();
-  loadResults();
-  setInterval(loadResults, 5000);
-});
+const CONFIG = JSON.parse(`<?= config ?>`);
+const GAS_URL = window.location.href;
 
 // ウォレット接続
 document.getElementById("connect").onclick = async () => {
@@ -42,24 +37,9 @@ document.getElementById("connect").onclick = async () => {
   document.getElementById("address").innerText = userAddress;
 };
 
-// 投票
-document.getElementById("vote").onclick = async () => {
-  if (!signer) { alert("ウォレット接続してください"); return; }
-  const choice = document.getElementById("choice").value;
-  const signature = await signer.signMessage(CONFIG.message);
-
-  const res = await fetch(window.location.href, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ address: userAddress, choice, signature })
-  });
-  const data = await res.json();
-  alert(JSON.stringify(data));
-  loadResults();
-};
-
-// 選択肢描画
-function renderChoices() {
+// 選択肢表示
+window.addEventListener("load", () => {
+  document.getElementById("proposal").innerText = CONFIG.proposal_id;
   const select = document.getElementById("choice");
   select.innerHTML = "";
   if (CONFIG.choices) {
@@ -70,28 +50,37 @@ function renderChoices() {
       select.appendChild(opt);
     });
   }
-}
+  loadResults();
+  setInterval(loadResults, 5000);
+});
 
-// 議題表示
-function renderProposal() {
-  document.getElementById("proposal").innerText = CONFIG.proposal_id;
-}
+// 投票
+document.getElementById("vote").onclick = async () => {
+  if (!signer) { alert("ウォレット接続してください"); return; }
+  const choice = document.getElementById("choice").value;
+  const signature = await signer.signMessage(CONFIG.message);
 
-// 結果描画
+  const res = await fetch(GAS_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ address: userAddress, choice, signature })
+  });
+  const data = await res.json();
+  alert(JSON.stringify(data));
+  loadResults();
+};
+
+// 結果取得
 async function loadResults() {
-  const res = await fetch(window.location.href + "?action=results");
+  const res = await fetch(GAS_URL + "?action=results");
   const data = await res.json();
   const ctx = document.getElementById("chart").getContext("2d");
   if (chart) chart.destroy();
   chart = new Chart(ctx, {
     type: 'bar',
-    data: {
-      labels: Object.keys(data),
-      datasets: [{ label: "Votes", data: Object.values(data) }]
-    }
+    data: { labels: Object.keys(data), datasets: [{ label: "Votes", data: Object.values(data) }] }
   });
 }
 </script>
-
 </body>
 </html>
