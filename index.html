@@ -19,13 +19,22 @@
   <h3>Results</h3>
   <pre id="results"></pre>
 
-<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
+  <!-- 📊 グラフ -->
+  <canvas id="chart" width="400" height="200"></canvas>
+
+  <!-- ethers -->
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
 const API = "GASのURLをここに";
 
 let userAddress;
+let chart; // グラフ保持
 
+// 🔗 ウォレット接続
 async function connect() {
   const provider = new ethers.providers.Web3Provider(window.ethereum);
   const accounts = await provider.send("eth_requestAccounts", []);
@@ -33,6 +42,7 @@ async function connect() {
   document.getElementById("address").innerText = userAddress;
 }
 
+// 🗳 投票
 async function vote() {
   const provider = new ethers.providers.Web3Provider(window.ethereum);
   const signer = provider.getSigner();
@@ -56,15 +66,54 @@ async function vote() {
   alert(JSON.stringify(data));
 }
 
+// 📊 結果取得
 async function loadResults() {
   const res = await fetch(API + "?action=results");
   const data = await res.json();
 
+  // テキスト表示
   document.getElementById("results").innerText =
     JSON.stringify(data, null, 2);
+
+  // グラフ描画
+  drawChart(data);
 }
 
+// 📊 グラフ描画関数
+function drawChart(data) {
+  const labels = Object.keys(data);
+  const values = Object.values(data);
+
+  const ctx = document.getElementById("chart").getContext("2d");
+
+  // 既存グラフ削除（重要）
+  if (chart) {
+    chart.destroy();
+  }
+
+  chart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: "Votes",
+        data: values
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        y: {
+          beginAtZero: true
+        }
+      }
+    }
+  });
+}
+
+// ⏱ 5秒ごと更新
 setInterval(loadResults, 5000);
+
 </script>
 
 </body>
