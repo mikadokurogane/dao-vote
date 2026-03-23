@@ -7,80 +7,81 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-
 <h2>DAO Voting</h2>
-<button onclick="connectWallet()">Connect Wallet</button>
+<button id="connectBtn">Connect Wallet</button>
 <p id="address">Not connected</p>
 
 <h3 id="proposal"></h3>
 <select id="choice"></select>
-<button onclick="vote()">Vote</button>
+<button id="voteBtn">Vote</button>
 
 <h3>Results</h3>
 <canvas id="chart" width="400" height="200"></canvas>
 
 <script>
-  // GAS で埋め込まれた config を安全に JS に展開
-  var CONFIG = JSON.parse('<?= html.config ?>');
+const CONFIG = JSON.parse(`<?= html.config ?>`);
+let signer, userAddress, chart;
 
-  let signer, userAddress, chart;
+// 初期化
+window.addEventListener("load", () => {
+  loadChoices();
+  loadResults();
+  setInterval(loadResults, 5000);
+});
 
-  window.addEventListener("load", async () => {
-    loadChoices();
-    loadResults();
-    setInterval(loadResults, 5000);
+// 選択肢をセット
+function loadChoices() {
+  document.getElementById("proposal").innerText = CONFIG.proposal_id;
+  const select = document.getElementById("choice");
+  select.innerHTML = "";
+  CONFIG.choices.split(",").forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = c.trim();
+    opt.innerText = c.trim();
+    select.appendChild(opt);
   });
+}
 
-  function loadChoices() {
-    document.getElementById("proposal").innerText = CONFIG.proposal_id;
-    const select = document.getElementById("choice");
-    select.innerHTML = "";
-    CONFIG.choices.split(",").forEach(c => {
-      const opt = document.createElement("option");
-      opt.value = c.trim();
-      opt.innerText = c.trim();
-      select.appendChild(opt);
-    });
-  }
+// ウォレット接続
+document.getElementById("connectBtn").onclick = async () => {
+  if(!window.ethereum){ alert("MetaMask required"); return; }
+  const provider = new ethers.providers.Web3Provider(window.ethereum);
+  await provider.send("eth_requestAccounts", []);
+  signer = provider.getSigner();
+  userAddress = await signer.getAddress();
+  document.getElementById("address").innerText = userAddress;
+};
 
-  async function connectWallet() {
-    if(!window.ethereum){ alert("MetaMask required"); return; }
-    const provider = new ethers.providers.Web3Provider(window.ethereum);
-    await provider.send("eth_requestAccounts", []);
-    signer = provider.getSigner();
-    userAddress = await signer.getAddress();
-    document.getElementById("address").innerText = userAddress;
-  }
+// 投票
+document.getElementById("voteBtn").onclick = async () => {
+  if(!signer){ alert("Connect wallet first"); return; }
+  const choice = document.getElementById("choice").value;
+  const signature = await signer.signMessage(CONFIG.message);
 
-  async function vote() {
-    if(!signer){ alert("Connect wallet first"); return; }
-    const choice = document.getElementById("choice").value;
-    const signature = await signer.signMessage(CONFIG.message);
+  const res = await fetch("", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ address:userAddress, choice, signature })
+  });
+  const data = await res.json();
+  if(data.success) alert("Vote Success");
+  else alert("Vote Error: "+data.error);
 
-    const res = await fetch("", {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ address:userAddress, choice, signature })
-    });
+  loadResults();
+};
 
-    const data = await res.json();
-    if(data.success) alert("Vote Success");
-    else alert("Vote Error: "+data.error);
+// 結果取得
+async function loadResults() {
+  const res = await fetch("?action=results");
+  const data = await res.json();
 
-    loadResults();
-  }
-
-  async function loadResults() {
-    const res = await fetch("?action=results");
-    const data = await res.json();
-
-    const ctx = document.getElementById("chart").getContext("2d");
-    if(chart) chart.destroy();
-    chart = new Chart(ctx, {
-      type:"bar",
-      data: { labels:Object.keys(data), datasets:[{ label:"Votes", data:Object.values(data) }] }
-    });
-  }
+  const ctx = document.getElementById("chart").getContext("2d");
+  if(chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type:"bar",
+    data: { labels:Object.keys(data), datasets:[{ label:"Votes", data:Object.values(data) }] }
+  });
+}
 </script>
 </body>
 </html>
