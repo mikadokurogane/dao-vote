@@ -2,218 +2,96 @@
 <html>
 <head>
   <meta charset="UTF-8">
-
-  <!-- ethers -->
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-
-  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <title>DAO Voting</title>
 </head>
-
 <body>
   <h2>DAO Voting</h2>
-
   <button onclick="connect()">Connect Wallet</button>
   <p id="address">Not connected</p>
 
   <h3 id="proposal"></h3>
-
   <select id="choice"></select>
-
   <button onclick="vote()">Vote</button>
 
   <h3>Results</h3>
   <canvas id="chart" width="400" height="200"></canvas>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxEMJNjJz1AtSrHxWFEK83GqojYi5dlNPBonLcbW_JlORueT-OxhIPmEjhQmBdH7vJc/exec";
+const API_URL = "【ここにWebアプリURLを入れる】";
 
 let signer = null;
 let userAddress = null;
 let currentConfig = null;
 let chart = null;
 
-// =======================
-// 初期チェック
-// =======================
-window.addEventListener("load", () => {
-  if (typeof ethers === "undefined") {
-    alert("ethersの読み込みに失敗しています");
-  }
-});
-
-// =======================
 // ウォレット接続
-// =======================
 async function connect() {
-  try {
-    if (!window.ethereum) {
-      alert("MetaMaskをインストールしてください");
-      return;
-    }
-
-    const provider = new ethers.providers.Web3Provider(window.ethereum);
-    await provider.send("eth_requestAccounts", []);
-
-    signer = provider.getSigner();
-    userAddress = await signer.getAddress();
-
-    document.getElementById("address").innerText = userAddress;
-
-  } catch (err) {
-    alert("接続エラー: " + err.message);
-  }
+  if (!window.ethereum) return alert("MetaMaskをインストールしてください");
+  const provider = new ethers.providers.Web3Provider(window.ethereum);
+  await provider.send("eth_requestAccounts", []);
+  signer = provider.getSigner();
+  userAddress = await signer.getAddress();
+  document.getElementById("address").innerText = userAddress;
 }
 
-// =======================
 // config取得
-// =======================
 async function loadConfig() {
-  try {
-    const res = await fetch(API_URL + "?action=config");
-    const config = await res.json();
+  const res = await fetch(API_URL + "?action=config");
+  currentConfig = await res.json();
+  document.getElementById("proposal").innerText = currentConfig.proposal_id;
 
-    if (!config || !config.choices) {
-      console.log("config未取得", config);
-      return;
-    }
-
-    currentConfig = config;
-
-    document.getElementById("proposal").innerText = config.proposal_id;
-
-    const choices = config.choices.split(",");
-    const select = document.getElementById("choice");
-
-    select.innerHTML = "";
-
-    choices.forEach(c => {
-      const opt = document.createElement("option");
-      opt.value = c;
-      opt.innerText = c;
-      select.appendChild(opt);
-    });
-
-  } catch (err) {
-    console.log("config取得エラー", err);
-  }
-}
-
-// =======================
-// 投票
-// =======================
-async function vote() {
-  try {
-    if (!signer) {
-      alert("先にウォレット接続してください");
-      return;
-    }
-
-    if (!currentConfig) {
-      alert("設定を読み込み中です。少し待ってください");
-      return;
-    }
-
-    const choice = document.getElementById("choice").value;
-
-    if (!choice) {
-      alert("選択肢を選んでください");
-      return;
-    }
-
-    const message = currentConfig.message;
-
-    if (!message) {
-      alert("messageが取得できていません");
-      return;
-    }
-
-    const signature = await signer.signMessage(message);
-
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        address: userAddress,
-        choice: choice,
-        signature: signature
-      })
-    });
-
-    const text = await res.text();
-
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch (e) {
-      alert("APIエラー:\n" + text);
-      return;
-    }
-
-    alert(JSON.stringify(data));
-    loadResults();
-
-  } catch (err) {
-    console.error(err);
-    alert("投票エラー: " + err.message);
-  }
-}
-
-// =======================
-// 結果取得
-// =======================
-async function loadResults() {
-  try {
-    const res = await fetch(API_URL + "?action=results");
-    const data = await res.json();
-
-    drawChart(data);
-
-  } catch (err) {
-    console.log("結果取得エラー", err);
-  }
-}
-
-// =======================
-// グラフ描画
-// =======================
-function drawChart(data) {
-  const labels = Object.keys(data);
-  const values = Object.values(data);
-
-  const ctx = document.getElementById("chart").getContext("2d");
-
-  if (chart) {
-    chart.destroy();
-  }
-
-  chart = new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels: labels,
-      datasets: [{
-        label: "Votes",
-        data: values
-      }]
-    }
+  const select = document.getElementById("choice");
+  select.innerHTML = "";
+  currentConfig.choices.split(",").forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = c;
+    opt.innerText = c;
+    select.appendChild(opt);
   });
 }
 
-// =======================
-// 初期化（重要）
-// =======================
-async function init() {
-  await loadConfig();
-  await loadResults();
+// 投票
+async function vote() {
+  if (!signer) return alert("先にウォレット接続してください");
+  const choice = document.getElementById("choice").value;
+  const signature = await signer.signMessage(currentConfig.message);
+
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ address: userAddress, choice, signature })
+  });
+
+  const data = await res.json();
+  alert(JSON.stringify(data));
+  loadResults();
 }
 
-init();
+// 結果取得
+async function loadResults() {
+  const res = await fetch(API_URL + "?action=results");
+  const data = await res.json();
+  drawChart(data);
+}
 
-// 自動更新
+// グラフ描画
+function drawChart(data) {
+  const labels = Object.keys(data);
+  const values = Object.values(data);
+  const ctx = document.getElementById("chart").getContext("2d");
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: "bar",
+    data: { labels, datasets: [{ label: "Votes", data: values }] }
+  });
+}
+
+// 初期ロード
+loadConfig();
+loadResults();
 setInterval(loadResults, 5000);
 </script>
-
 </body>
 </html>
