@@ -19,7 +19,8 @@
 <canvas id="chart" width="400" height="200"></canvas>
 
 <script>
-const CONFIG = JSON.parse(`<?= html.config ?>`); // GAS側で < を安全化済み
+// GASテンプレートで安全に展開する
+const CONFIG = <?!= html.config ?>;
 let signer, userAddress, chart;
 
 // 初期化
