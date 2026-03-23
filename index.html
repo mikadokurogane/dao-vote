@@ -6,8 +6,8 @@
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-body { font-family: Arial, sans-serif; margin: 20px; }
-button { margin: 5px 0; }
+body { font-family: Arial; padding: 20px; }
+button { margin-top: 10px; }
 </style>
 </head>
 <body>
@@ -23,27 +23,16 @@ button { margin: 5px 0; }
 <canvas id="chart" width="400" height="200"></canvas>
 
 <script>
+const API_URL = "https://script.google.com/macros/s/AKfycbyYafvu_mVs5gGBUyP0Q_5BMZzpbDY2F1OaHehhzuMP4kwdNhP6OABXSarUqH3-hm2e/exec"; // ここにデプロイ済GASのURLを入れる
+
 let signer, userAddress, currentConfig, chart;
 
-// 初期ロード
-window.addEventListener("load", () => {
-  google.script.run.withSuccessHandler(config => {
-    currentConfig = config;
-    const select = document.getElementById("choice");
-    select.innerHTML = "";
-    if (currentConfig.choices) currentConfig.choices.split(",").forEach(c => {
-      const opt = document.createElement("option");
-      opt.value = c.trim();
-      opt.innerText = c.trim();
-      select.appendChild(opt);
-    });
-    document.getElementById("proposal").innerText = currentConfig.proposal_id;
-    loadResults();
-    setInterval(loadResults, 5000);
-  }).getConfig();
+window.addEventListener("load", async () => {
+  await loadConfig();
+  await loadResults();
+  setInterval(loadResults, 5000);
 });
 
-// ウォレット接続
 async function connectWallet() {
   if (!window.ethereum) { alert("MetaMaskをインストールしてください"); return; }
   const provider = new ethers.providers.Web3Provider(window.ethereum);
@@ -53,30 +42,45 @@ async function connectWallet() {
   document.getElementById("address").innerText = userAddress;
 }
 
-// 投票
+async function loadConfig() {
+  const res = await fetch(API_URL + "?action=config");
+  currentConfig = await res.json();
+  const select = document.getElementById("choice");
+  select.innerHTML = "";
+  currentConfig.choices.split(",").forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = c.trim();
+    opt.innerText = c.trim();
+    select.appendChild(opt);
+  });
+  document.getElementById("proposal").innerText = currentConfig.proposal_id;
+}
+
 async function vote() {
   if (!signer) { alert("ウォレットを接続してください"); return; }
   const choice = document.getElementById("choice").value;
-  const signature = await signer.signMessage(currentConfig.message);
 
-  google.script.run.withSuccessHandler(res => {
-    alert(JSON.stringify(res));
-    loadResults();
-  }).withFailureHandler(err => {
-    alert("投票エラー: " + err.message);
-  }).doPost({ postData: { contents: JSON.stringify({ address: userAddress, choice, signature }) } });
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ address: userAddress, choice })
+  });
+
+  const data = await res.json();
+  alert(JSON.stringify(data));
+  loadResults();
 }
 
-// 結果取得
-function loadResults() {
-  google.script.run.withSuccessHandler(data => {
-    const ctx = document.getElementById("chart").getContext("2d");
-    if (chart) chart.destroy();
-    chart = new Chart(ctx, {
-      type: "bar",
-      data: { labels: Object.keys(data), datasets: [{ label: "Votes", data: Object.values(data) }] }
-    });
-  }).getResults();
+async function loadResults() {
+  const res = await fetch(API_URL + "?action=results");
+  const data = await res.json();
+  const ctx = document.getElementById("chart").getContext("2d");
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: "bar",
+    data: { labels: Object.keys(data), datasets: [{ label: "Votes", data: Object.values(data) }] },
+    options: { responsive: true, scales: { y: { beginAtZero: true } } }
+  });
 }
 </script>
 </body>
