@@ -5,33 +5,36 @@
 <title>DAO Voting</title>
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<style>
-body { font-family: sans-serif; padding: 20px; }
-button { margin: 5px 0; padding: 8px 12px; }
-select { padding: 5px; }
-</style>
 </head>
 <body>
+
 <h2>DAO Voting</h2>
-<button id="connectBtn">Connect Wallet</button>
+<button id="connect">Connect Wallet</button>
 <p id="address">Not connected</p>
 
 <h3 id="proposal"></h3>
 <select id="choice"></select>
-<button id="voteBtn">Vote</button>
+<button id="vote">Vote</button>
 
 <h3>Results</h3>
 <canvas id="chart" width="400" height="200"></canvas>
 
 <script>
-// GASから埋め込まれたCONFIGを取得
-const CONFIG = <?= config ?>;
+var CONFIG = <?= config ?>; // GAS から渡された config
 
 let signer, userAddress, chart;
 
-// MetaMask 接続
-document.getElementById("connectBtn").onclick = async () => {
-  if (!window.ethereum) { alert("MetaMask をインストールしてください"); return; }
+// 初期ロード
+window.addEventListener("load", async () => {
+  renderChoices();
+  renderProposal();
+  loadResults();
+  setInterval(loadResults, 5000);
+});
+
+// ウォレット接続
+document.getElementById("connect").onclick = async () => {
+  if (!window.ethereum) { alert("MetaMaskをインストールしてください"); return; }
   const provider = new ethers.providers.Web3Provider(window.ethereum);
   await provider.send("eth_requestAccounts", []);
   signer = provider.getSigner();
@@ -39,26 +42,13 @@ document.getElementById("connectBtn").onclick = async () => {
   document.getElementById("address").innerText = userAddress;
 };
 
-// 選択肢描画
-const select = document.getElementById("choice");
-select.innerHTML = "";
-if (CONFIG.choices) {
-  CONFIG.choices.split(",").forEach(c => {
-    const opt = document.createElement("option");
-    opt.value = c.trim();
-    opt.innerText = c.trim();
-    select.appendChild(opt);
-  });
-}
-document.getElementById("proposal").innerText = CONFIG.proposal_id;
-
 // 投票
-document.getElementById("voteBtn").onclick = async () => {
-  if (!signer) { alert("ウォレットを接続してください"); return; }
-  const choice = select.value;
+document.getElementById("vote").onclick = async () => {
+  if (!signer) { alert("ウォレット接続してください"); return; }
+  const choice = document.getElementById("choice").value;
   const signature = await signer.signMessage(CONFIG.message);
 
-  const res = await fetch("", {
+  const res = await fetch(window.location.href, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ address: userAddress, choice, signature })
@@ -68,19 +58,40 @@ document.getElementById("voteBtn").onclick = async () => {
   loadResults();
 };
 
-// 結果表示
+// 選択肢描画
+function renderChoices() {
+  const select = document.getElementById("choice");
+  select.innerHTML = "";
+  if (CONFIG.choices) {
+    CONFIG.choices.split(",").forEach(c => {
+      const opt = document.createElement("option");
+      opt.value = c.trim();
+      opt.innerText = c.trim();
+      select.appendChild(opt);
+    });
+  }
+}
+
+// 議題表示
+function renderProposal() {
+  document.getElementById("proposal").innerText = CONFIG.proposal_id;
+}
+
+// 結果描画
 async function loadResults() {
-  const res = await fetch("?action=results");
+  const res = await fetch(window.location.href + "?action=results");
   const data = await res.json();
   const ctx = document.getElementById("chart").getContext("2d");
   if (chart) chart.destroy();
   chart = new Chart(ctx, {
-    type: "bar",
-    data: { labels: Object.keys(data), datasets: [{ label: "Votes", data: Object.values(data) }] }
+    type: 'bar',
+    data: {
+      labels: Object.keys(data),
+      datasets: [{ label: "Votes", data: Object.values(data) }]
+    }
   });
 }
-loadResults();
-setInterval(loadResults, 5000);
 </script>
+
 </body>
 </html>
