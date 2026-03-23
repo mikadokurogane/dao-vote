@@ -19,16 +19,16 @@
 <canvas id="chart" width="400" height="200"></canvas>
 
 <script>
+const API_URL = location.href.replace(/\/$/, ""); // 同じGASにアクセス
 let signer, userAddress;
-let currentConfig = <?= JSON.stringify(config) ?>;
-let currentResults = <?= JSON.stringify(results) ?>;
+let currentConfig = null;
 let chart = null;
 
-// ページロード時に選択肢とグラフを描画
-window.addEventListener("load", () => {
-  renderChoices();
-  renderChart();
-  document.getElementById("proposal").innerText = currentConfig.proposal_id;
+// 初期ロード
+window.addEventListener("load", async () => {
+  await loadConfig();
+  await loadResults();
+  setInterval(loadResults, 5000);
 });
 
 // ウォレット接続
@@ -41,8 +41,12 @@ async function connectWallet() {
   document.getElementById("address").innerText = userAddress;
 }
 
-// 選択肢描画
-function renderChoices() {
+// 設定ロード
+async function loadConfig() {
+  const res = await fetch(API_URL + "?action=config");
+  currentConfig = await res.json();
+
+  // 選択肢描画
   const select = document.getElementById("choice");
   select.innerHTML = "";
   if (currentConfig.choices) {
@@ -53,36 +57,38 @@ function renderChoices() {
       select.appendChild(opt);
     });
   }
+  document.getElementById("proposal").innerText = currentConfig.proposal_id;
 }
 
-// グラフ描画
-function renderChart() {
+// 結果取得
+async function loadResults() {
+  const res = await fetch(API_URL + "?action=results");
+  const data = await res.json();
+
   const ctx = document.getElementById("chart").getContext("2d");
   if (chart) chart.destroy();
   chart = new Chart(ctx, {
     type: "bar",
-    data: { labels: Object.keys(currentResults), datasets: [{ label: "Votes", data: Object.values(currentResults) }] },
+    data: { labels: Object.keys(data), datasets: [{ label: "Votes", data: Object.values(data) }] },
     options: { scales: { y: { beginAtZero: true } } }
   });
 }
 
-// 投票処理
+// 投票
 async function vote() {
   if (!signer) { alert("ウォレットを接続してください"); return; }
   const choice = document.getElementById("choice").value;
   const signature = await signer.signMessage(currentConfig.message);
 
-  const res = await fetch("", { // 同じGASにPOST
+  const res = await fetch(API_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ address: userAddress, choice, signature })
   });
-
   const data = await res.json();
   alert(JSON.stringify(data));
 
-  // 投票後にページ更新
-  location.reload();
+  await loadResults(); // リロード不要で結果更新
 }
 </script>
 </body>
