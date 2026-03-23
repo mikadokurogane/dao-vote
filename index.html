@@ -1,30 +1,20 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>DAO Voting</title>
+<div id="dao-vote-app">
+  <h2>DAO Voting</h2>
+  <button id="connectWalletBtn">Connect Wallet</button>
+  <p id="address">Not connected</p>
+
+  <h3 id="proposal"></h3>
+  <select id="choice"></select>
+  <button id="voteBtn">Vote</button>
+
+  <h3>Results</h3>
+  <canvas id="chart" width="400" height="200"></canvas>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<style>
-body { font-family: Arial; padding: 20px; }
-button { margin-top: 10px; }
-</style>
-</head>
-<body>
-<h2>DAO Voting</h2>
-<button onclick="connectWallet()">Connect Wallet</button>
-<p id="address">Not connected</p>
-
-<h3 id="proposal"></h3>
-<select id="choice"></select>
-<button onclick="vote()">Vote</button>
-
-<h3>Results</h3>
-<canvas id="chart" width="400" height="200"></canvas>
-
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbyYafvu_mVs5gGBUyP0Q_5BMZzpbDY2F1OaHehhzuMP4kwdNhP6OABXSarUqH3-hm2e/exec"; // ここにデプロイ済GASのURLを入れる
-
+const API_URL = "https://script.google.com/macros/s/AKfycbyYafvu_mVs5gGBUyP0Q_5BMZzpbDY2F1OaHehhzuMP4kwdNhP6OABXSarUqH3-hm2e/exec";
 let signer, userAddress, currentConfig, chart;
 
 window.addEventListener("load", async () => {
@@ -33,18 +23,35 @@ window.addEventListener("load", async () => {
   setInterval(loadResults, 5000);
 });
 
-async function connectWallet() {
-  if (!window.ethereum) { alert("MetaMaskをインストールしてください"); return; }
+document.getElementById("connectWalletBtn").onclick = async () => {
+  if (!window.ethereum) return alert("MetaMaskをインストールしてください");
   const provider = new ethers.providers.Web3Provider(window.ethereum);
   await provider.send("eth_requestAccounts", []);
   signer = provider.getSigner();
   userAddress = await signer.getAddress();
   document.getElementById("address").innerText = userAddress;
-}
+};
+
+document.getElementById("voteBtn").onclick = async () => {
+  if (!signer) return alert("ウォレットを接続してください");
+  const choice = document.getElementById("choice").value;
+  const signature = await signer.signMessage(currentConfig.message);
+
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ address: userAddress, choice, signature })
+  });
+  const data = await res.json();
+  alert(JSON.stringify(data));
+  await loadResults();
+};
 
 async function loadConfig() {
   const res = await fetch(API_URL + "?action=config");
   currentConfig = await res.json();
+  document.getElementById("proposal").innerText = currentConfig.proposal_id;
+
   const select = document.getElementById("choice");
   select.innerHTML = "";
   currentConfig.choices.split(",").forEach(c => {
@@ -53,22 +60,6 @@ async function loadConfig() {
     opt.innerText = c.trim();
     select.appendChild(opt);
   });
-  document.getElementById("proposal").innerText = currentConfig.proposal_id;
-}
-
-async function vote() {
-  if (!signer) { alert("ウォレットを接続してください"); return; }
-  const choice = document.getElementById("choice").value;
-
-  const res = await fetch(API_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ address: userAddress, choice })
-  });
-
-  const data = await res.json();
-  alert(JSON.stringify(data));
-  loadResults();
 }
 
 async function loadResults() {
@@ -78,10 +69,7 @@ async function loadResults() {
   if (chart) chart.destroy();
   chart = new Chart(ctx, {
     type: "bar",
-    data: { labels: Object.keys(data), datasets: [{ label: "Votes", data: Object.values(data) }] },
-    options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    data: { labels: Object.keys(data), datasets: [{ label: "Votes", data: Object.values(data) }] }
   });
 }
 </script>
-</body>
-</html>
