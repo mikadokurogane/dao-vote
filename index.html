@@ -5,9 +5,12 @@
 <title>DAO Voting</title>
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body { font-family: Arial, sans-serif; margin: 20px; }
+button { margin: 5px 0; }
+</style>
 </head>
 <body>
-
 <h2>DAO Voting</h2>
 <button onclick="connectWallet()">Connect Wallet</button>
 <p id="address">Not connected</p>
@@ -20,15 +23,24 @@
 <canvas id="chart" width="400" height="200"></canvas>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbyYafvu_mVs5gGBUyP0Q_5BMZzpbDY2F1OaHehhzuMP4kwdNhP6OABXSarUqH3-hm2e/exec";
-
 let signer, userAddress, currentConfig, chart;
 
 // 初期ロード
-window.addEventListener("load", async () => {
-  await loadConfig();
-  await loadResults();
-  setInterval(loadResults, 5000);
+window.addEventListener("load", () => {
+  google.script.run.withSuccessHandler(config => {
+    currentConfig = config;
+    const select = document.getElementById("choice");
+    select.innerHTML = "";
+    if (currentConfig.choices) currentConfig.choices.split(",").forEach(c => {
+      const opt = document.createElement("option");
+      opt.value = c.trim();
+      opt.innerText = c.trim();
+      select.appendChild(opt);
+    });
+    document.getElementById("proposal").innerText = currentConfig.proposal_id;
+    loadResults();
+    setInterval(loadResults, 5000);
+  }).getConfig();
 });
 
 // ウォレット接続
@@ -41,62 +53,30 @@ async function connectWallet() {
   document.getElementById("address").innerText = userAddress;
 }
 
-// 設定ロード
-async function loadConfig() {
-  const res = await fetch(API_URL + "?action=config");
-  currentConfig = await res.json();
-
-  document.getElementById("proposal").innerText = currentConfig.proposal_id;
-
-  // 選択肢描画
-  const select = document.getElementById("choice");
-  select.innerHTML = "";
-  if (currentConfig.choices) {
-    currentConfig.choices.split(",").forEach(c => {
-      const opt = document.createElement("option");
-      opt.value = c.trim();
-      opt.innerText = c.trim();
-      select.appendChild(opt);
-    });
-  }
-}
-
 // 投票
 async function vote() {
   if (!signer) { alert("ウォレットを接続してください"); return; }
-
   const choice = document.getElementById("choice").value;
   const signature = await signer.signMessage(currentConfig.message);
 
-  try {
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ address: userAddress, choice, signature })
-    });
-    const data = await res.json();
-    alert(JSON.stringify(data));
-    await loadResults();
-  } catch (err) {
+  google.script.run.withSuccessHandler(res => {
+    alert(JSON.stringify(res));
+    loadResults();
+  }).withFailureHandler(err => {
     alert("投票エラー: " + err.message);
-  }
+  }).doPost({ postData: { contents: JSON.stringify({ address: userAddress, choice, signature }) } });
 }
 
 // 結果取得
-async function loadResults() {
-  const res = await fetch(API_URL + "?action=results");
-  const data = await res.json();
-
-  const ctx = document.getElementById("chart").getContext("2d");
-  if (chart) chart.destroy();
-
-  chart = new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels: Object.keys(data),
-      datasets: [{ label: "Votes", data: Object.values(data) }]
-    }
-  });
+function loadResults() {
+  google.script.run.withSuccessHandler(data => {
+    const ctx = document.getElementById("chart").getContext("2d");
+    if (chart) chart.destroy();
+    chart = new Chart(ctx, {
+      type: "bar",
+      data: { labels: Object.keys(data), datasets: [{ label: "Votes", data: Object.values(data) }] }
+    });
+  }).getResults();
 }
 </script>
 </body>
