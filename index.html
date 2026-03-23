@@ -1,14 +1,16 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
+  <meta charset="UTF-8">
+  <!-- ethers（安定版） -->
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 </head>
 
 <body>
   <h2>DAO Voting</h2>
 
   <button onclick="connect()">Connect Wallet</button>
-  <p id="address"></p>
+  <p id="address">Not connected</p>
 
   <select id="choice">
     <option value="A">A</option>
@@ -23,23 +25,38 @@
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbxEMJNjJz1AtSrHxWFEK83GqojYi5dlNPBonLcbW_JlORueT-OxhIPmEjhQmBdH7vJc/exec";
 
-let signer, userAddress;
+let signer = null;
+let userAddress = null;
+
+// ethers読み込みチェック
+window.addEventListener("load", () => {
+  if (typeof ethers === "undefined") {
+    alert("ethersの読み込みに失敗しています（CDNエラー）");
+  }
+});
 
 // ウォレット接続
 async function connect() {
   try {
+    if (!window.ethereum) {
+      alert("MetaMaskをインストールしてください");
+      return;
+    }
+
     const provider = new ethers.providers.Web3Provider(window.ethereum);
     await provider.send("eth_requestAccounts", []);
+
     signer = provider.getSigner();
     userAddress = await signer.getAddress();
 
     document.getElementById("address").innerText = userAddress;
+
   } catch (err) {
-    alert("ウォレット接続エラー: " + err.message);
+    alert("接続エラー: " + err.message);
   }
 }
 
-// 投票処理（安全版）
+// 投票処理
 async function vote() {
   try {
     if (!signer) {
@@ -82,7 +99,7 @@ async function vote() {
   }
 }
 
-// 結果取得（安全版）
+// 結果取得
 async function loadResults() {
   try {
     const res = await fetch(API_URL + "?action=results");
@@ -104,11 +121,11 @@ async function loadResults() {
   }
 }
 
-// 5秒ごとに更新
-setInterval(loadResults, 5000);
-
 // 初回ロード
 loadResults();
+
+// 5秒ごと更新
+setInterval(loadResults, 5000);
 </script>
 
 </body>
