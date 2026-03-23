@@ -6,8 +6,8 @@
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-body { font-family: sans-serif; padding: 20px; }
-button { margin-top: 10px; }
+body { font-family:sans-serif; padding:20px; }
+button { margin:5px 0; }
 </style>
 </head>
 <body>
@@ -24,23 +24,21 @@ button { margin-top: 10px; }
 <canvas id="chart" width="400" height="200"></canvas>
 
 <script>
-const CONFIG = <?= JSON.stringify(config) ?>; // GASから直接渡された設定
-const API_URL = ''; // 空にしてGAS Webアプリ内で完結
-
+const CONFIG = <?= config ?>;
 let signer, userAddress, chart;
 
-// 初期ロード
-window.addEventListener("load", async () => {
+// 初期描画
+window.onload = () => {
   renderChoices();
-  await loadResults();
+  loadResults();
   setInterval(loadResults, 5000);
-});
+};
 
 // 選択肢描画
 function renderChoices() {
   const select = document.getElementById("choice");
   select.innerHTML = "";
-  CONFIG.choices.split(",").forEach(c => {
+  CONFIG.choices.split(",").forEach(c=>{
     const opt = document.createElement("option");
     opt.value = c.trim();
     opt.innerText = c.trim();
@@ -49,9 +47,9 @@ function renderChoices() {
   document.getElementById("proposal").innerText = CONFIG.proposal_id;
 }
 
-// ウォレット接続
+// MetaMask接続
 async function connectWallet() {
-  if (!window.ethereum) { alert("MetaMaskをインストールしてください"); return; }
+  if(!window.ethereum){ alert("MetaMaskを入れてください"); return; }
   const provider = new ethers.providers.Web3Provider(window.ethereum);
   await provider.send("eth_requestAccounts", []);
   signer = provider.getSigner();
@@ -61,28 +59,36 @@ async function connectWallet() {
 
 // 投票
 async function vote() {
-  if (!signer) { alert("ウォレットを接続してください"); return; }
+  if(!signer){ alert("ウォレット接続してください"); return; }
   const choice = document.getElementById("choice").value;
   const signature = await signer.signMessage(CONFIG.message);
 
-  google.script.run.withSuccessHandler(res => {
-    alert(JSON.stringify(res));
+  fetch("", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ address:userAddress, choice, signature })
+  })
+  .then(r=>r.json())
+  .then(r=>{
+    if(r.success) alert("Vote Success");
+    else alert("Vote Error: "+r.error);
     loadResults();
-  }).doPost(JSON.stringify({ address: userAddress, choice, signature }));
+  });
 }
 
-// 結果取得 & グラフ描画
-async function loadResults() {
-  google.script.run.withSuccessHandler(data => {
-    const ctx = document.getElementById("chart").getContext("2d");
-    if (chart) chart.destroy();
-    chart = new Chart(ctx, {
-      type: "bar",
-      data: { labels: Object.keys(data), datasets: [{ label: "Votes", data: Object.values(data) }] }
+// 結果描画
+function loadResults() {
+  fetch("?action=results")
+    .then(r=>r.json())
+    .then(data=>{
+      const ctx = document.getElementById("chart").getContext("2d");
+      if(chart) chart.destroy();
+      chart = new Chart(ctx,{
+        type:"bar",
+        data:{ labels:Object.keys(data), datasets:[{ label:"Votes", data:Object.values(data) }] }
+      });
     });
-  }).getResults();
 }
 </script>
-
 </body>
 </html>
