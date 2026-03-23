@@ -29,64 +29,97 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
+// 🔥 MetaMaskチェック
+if (!window.ethereum) {
+  alert("MetaMaskが必要です");
+}
+
 const API = "GASのURLをここに";
 
 let userAddress;
 let chart; // グラフ保持
 
-// 🔗 ウォレット接続
+// 🔗 ウォレット接続（安全版）
 async function connect() {
-  const provider = new ethers.providers.Web3Provider(window.ethereum);
-  const accounts = await provider.send("eth_requestAccounts", []);
-  userAddress = accounts[0];
-  document.getElementById("address").innerText = userAddress;
+  try {
+    if (!window.ethereum) {
+      alert("MetaMaskがインストールされていません");
+      return;
+    }
+
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const accounts = await provider.send("eth_requestAccounts", []);
+    userAddress = accounts[0];
+
+    document.getElementById("address").innerText = userAddress;
+
+  } catch (e) {
+    console.error(e);
+    alert("ウォレット接続エラー");
+  }
 }
 
 // 🗳 投票
 async function vote() {
-  const provider = new ethers.providers.Web3Provider(window.ethereum);
-  const signer = provider.getSigner();
+  try {
+    if (!userAddress) {
+      alert("先にウォレットを接続してください");
+      return;
+    }
 
-  const message = "I vote in proposal_001";
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
 
-  const signature = await signer.signMessage(message);
+    const message = "I vote in proposal_001";
 
-  const choice = document.getElementById("choice").value;
+    const signature = await signer.signMessage(message);
 
-  const res = await fetch(API, {
-    method: "POST",
-    body: JSON.stringify({
-      address: userAddress,
-      choice: choice,
-      signature: signature
-    })
-  });
+    const choice = document.getElementById("choice").value;
 
-  const data = await res.json();
-  alert(JSON.stringify(data));
+    const res = await fetch(API, {
+      method: "POST",
+      body: JSON.stringify({
+        address: userAddress,
+        choice: choice,
+        signature: signature
+      })
+    });
+
+    const data = await res.json();
+    alert(JSON.stringify(data));
+
+  } catch (e) {
+    console.error(e);
+    alert("投票エラー");
+  }
 }
 
 // 📊 結果取得
 async function loadResults() {
-  const res = await fetch(API + "?action=results");
-  const data = await res.json();
+  try {
+    const res = await fetch(API + "?action=results");
+    const data = await res.json();
 
-  // テキスト表示
-  document.getElementById("results").innerText =
-    JSON.stringify(data, null, 2);
+    // テキスト表示
+    document.getElementById("results").innerText =
+      JSON.stringify(data, null, 2);
 
-  // グラフ描画
-  drawChart(data);
+    // グラフ描画
+    drawChart(data);
+
+  } catch (e) {
+    console.error(e);
+  }
 }
 
-// 📊 グラフ描画関数
+// 📊 グラフ描画
 function drawChart(data) {
   const labels = Object.keys(data);
   const values = Object.values(data);
 
   const ctx = document.getElementById("chart").getContext("2d");
 
-  // 既存グラフ削除（重要）
+  // 既存グラフ削除
   if (chart) {
     chart.destroy();
   }
