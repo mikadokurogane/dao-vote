@@ -8,7 +8,7 @@
 </head>
 <body>
   <h2>DAO Voting</h2>
-  <button onclick="connect()">Connect Wallet</button>
+  <button onclick="connectWallet()">Connect Wallet</button>
   <p id="address">Not connected</p>
 
   <h3 id="proposal"></h3>
@@ -19,16 +19,24 @@
   <canvas id="chart" width="400" height="200"></canvas>
 
 <script>
-const API_URL = "【ここにWebアプリURLを入れる】";
+const API_URL = "YOUR_GAS_WEBAPP_URL_HERE";
 
 let signer = null;
 let userAddress = null;
 let currentConfig = null;
 let chart = null;
 
+window.addEventListener("load", () => {
+  loadConfig();
+  loadResults();
+  setInterval(loadResults, 5000);
+});
+
+// --------------------------
 // ウォレット接続
-async function connect() {
-  if (!window.ethereum) return alert("MetaMaskをインストールしてください");
+// --------------------------
+async function connectWallet() {
+  if (!window.ethereum) { alert("MetaMaskをインストールしてください"); return; }
   const provider = new ethers.providers.Web3Provider(window.ethereum);
   await provider.send("eth_requestAccounts", []);
   signer = provider.getSigner();
@@ -36,7 +44,9 @@ async function connect() {
   document.getElementById("address").innerText = userAddress;
 }
 
-// config取得
+// --------------------------
+// 設定ロード
+// --------------------------
 async function loadConfig() {
   const res = await fetch(API_URL + "?action=config");
   currentConfig = await res.json();
@@ -52,11 +62,14 @@ async function loadConfig() {
   });
 }
 
+// --------------------------
 // 投票
+// --------------------------
 async function vote() {
-  if (!signer) return alert("先にウォレット接続してください");
+  if (!signer) { alert("ウォレットを接続してください"); return; }
   const choice = document.getElementById("choice").value;
-  const signature = await signer.signMessage(currentConfig.message);
+  const message = currentConfig.message;
+  const signature = await signer.signMessage(message);
 
   const res = await fetch(API_URL, {
     method: "POST",
@@ -69,29 +82,30 @@ async function vote() {
   loadResults();
 }
 
+// --------------------------
 // 結果取得
+// --------------------------
 async function loadResults() {
   const res = await fetch(API_URL + "?action=results");
   const data = await res.json();
   drawChart(data);
 }
 
+// --------------------------
 // グラフ描画
+// --------------------------
 function drawChart(data) {
-  const labels = Object.keys(data);
-  const values = Object.values(data);
   const ctx = document.getElementById("chart").getContext("2d");
   if (chart) chart.destroy();
+
   chart = new Chart(ctx, {
     type: "bar",
-    data: { labels, datasets: [{ label: "Votes", data: values }] }
+    data: {
+      labels: Object.keys(data),
+      datasets: [{ label: "Votes", data: Object.values(data) }]
+    }
   });
 }
-
-// 初期ロード
-loadConfig();
-loadResults();
-setInterval(loadResults, 5000);
 </script>
 </body>
 </html>
