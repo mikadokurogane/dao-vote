@@ -3,9 +3,9 @@
 <head>
   <title>DAO Voting</title>
 
-  <!-- deferで確実に後から読み込み -->
-  <script defer src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- ✅ CDN変更 -->
+  <script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
@@ -24,100 +24,72 @@
   <h3>Results</h3>
   <pre id="results"></pre>
 
-  <canvas id="chart" width="400" height="200"></canvas>
+  <canvas id="chart"></canvas>
 
 <script>
-const API = "GASのURLをここに";
+if (typeof ethers === "undefined") {
+  alert("ethersの読み込み失敗");
+}
+
+const API = "ここにGASのURL";
 
 let userAddress;
 let chart;
 
-// 🔥 ethers読み込み待ち（これが最重要）
-async function waitForEthers() {
-  while (typeof ethers === "undefined") {
-    await new Promise(r => setTimeout(r, 50));
-  }
-}
-
-// 🔗 ウォレット接続
+// 接続
 async function connect() {
-  await waitForEthers();
-
-  try {
-    if (!window.ethereum) {
-      alert("MetaMaskが必要です");
-      return;
-    }
-
-    const provider = new ethers.providers.Web3Provider(window.ethereum);
-    const accounts = await provider.send("eth_requestAccounts", []);
-
-    userAddress = accounts[0];
-    document.getElementById("address").innerText = userAddress;
-
-  } catch (e) {
-    console.error(e);
-    alert("ウォレット接続エラー");
+  if (!window.ethereum) {
+    alert("MetaMaskが必要です");
+    return;
   }
+
+  const provider = new ethers.providers.Web3Provider(window.ethereum);
+  const accounts = await provider.send("eth_requestAccounts", []);
+
+  userAddress = accounts[0];
+  document.getElementById("address").innerText = userAddress;
 }
 
-// 🗳 投票
+// 投票
 async function vote() {
-  await waitForEthers();
-
-  try {
-    if (!userAddress) {
-      alert("先にウォレットを接続してください");
-      return;
-    }
-
-    const provider = new ethers.providers.Web3Provider(window.ethereum);
-    const signer = provider.getSigner();
-
-    const message = "I vote in proposal_001";
-    const signature = await signer.signMessage(message);
-
-    const choice = document.getElementById("choice").value;
-
-    const res = await fetch(API, {
-      method: "POST",
-      body: JSON.stringify({
-        address: userAddress,
-        choice: choice,
-        signature: signature
-      })
-    });
-
-    const data = await res.json();
-    alert(JSON.stringify(data));
-
-  } catch (e) {
-    console.error(e);
-    alert("投票エラー");
+  if (!userAddress) {
+    alert("先に接続してください");
+    return;
   }
+
+  const provider = new ethers.providers.Web3Provider(window.ethereum);
+  const signer = provider.getSigner();
+
+  const signature = await signer.signMessage("I vote in proposal_001");
+
+  const choice = document.getElementById("choice").value;
+
+  const res = await fetch(API, {
+    method: "POST",
+    body: JSON.stringify({
+      address: userAddress,
+      choice,
+      signature
+    })
+  });
+
+  const data = await res.json();
+  alert(JSON.stringify(data));
 }
 
-// 📊 結果取得
+// 結果
 async function loadResults() {
-  try {
-    const res = await fetch(API + "?action=results");
-    const data = await res.json();
+  const res = await fetch(API + "?action=results");
+  const data = await res.json();
 
-    document.getElementById("results").innerText =
-      JSON.stringify(data, null, 2);
+  document.getElementById("results").innerText =
+    JSON.stringify(data, null, 2);
 
-    drawChart(data);
-
-  } catch (e) {
-    console.error(e);
-  }
+  drawChart(data);
 }
 
-// 📊 グラフ描画
+// グラフ
 function drawChart(data) {
-  const labels = Object.keys(data);
-  const values = Object.values(data);
-
   const ctx = document.getElementById("chart").getContext("2d");
 
   if (chart) chart.destroy();
@@ -125,24 +97,16 @@ function drawChart(data) {
   chart = new Chart(ctx, {
     type: "bar",
     data: {
-      labels: labels,
+      labels: Object.keys(data),
       datasets: [{
         label: "Votes",
-        data: values
+        data: Object.values(data)
       }]
-    },
-    options: {
-      responsive: true,
-      scales: {
-        y: { beginAtZero: true }
-      }
     }
   });
 }
 
-// ⏱ 自動更新
 setInterval(loadResults, 5000);
-
 </script>
 
 </body>
