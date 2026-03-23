@@ -18,50 +18,97 @@
   <button onclick="vote()">Vote</button>
 
   <h3>Results</h3>
-  <pre id="results"></pre>
+  <pre id="results">Loading...</pre>
 
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbxEMJNjJz1AtSrHxWFEK83GqojYi5dlNPBonLcbW_JlORueT-OxhIPmEjhQmBdH7vJc/exec";
 
 let signer, userAddress;
 
+// ウォレット接続
 async function connect() {
-  const provider = new ethers.providers.Web3Provider(window.ethereum);
-  await provider.send("eth_requestAccounts", []);
-  signer = provider.getSigner();
-  userAddress = await signer.getAddress();
+  try {
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    await provider.send("eth_requestAccounts", []);
+    signer = provider.getSigner();
+    userAddress = await signer.getAddress();
 
-  document.getElementById("address").innerText = userAddress;
+    document.getElementById("address").innerText = userAddress;
+  } catch (err) {
+    alert("ウォレット接続エラー: " + err.message);
+  }
 }
 
+// 投票処理（安全版）
 async function vote() {
-  const choice = document.getElementById("choice").value;
+  try {
+    if (!signer) {
+      alert("先にウォレット接続してください");
+      return;
+    }
 
-  const message = "I vote in proposal_001";
+    const choice = document.getElementById("choice").value;
 
-  const signature = await signer.signMessage(message);
+    const message = "I vote in proposal_001";
 
-  const res = await fetch(API_URL, {
-    method: "POST",
-    body: JSON.stringify({
-      address: userAddress,
-      choice: choice,
-      signature: signature
-    })
-  });
+    const signature = await signer.signMessage(message);
 
-  const data = await res.json();
-  alert(JSON.stringify(data));
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        address: userAddress,
+        choice: choice,
+        signature: signature
+      })
+    });
+
+    const text = await res.text();
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      alert("APIエラー:\n" + text);
+      return;
+    }
+
+    alert(JSON.stringify(data));
+
+  } catch (err) {
+    alert("投票エラー: " + err.message);
+  }
 }
 
-// 結果取得
+// 結果取得（安全版）
 async function loadResults() {
-  const res = await fetch(API_URL + "?action=results");
-  const data = await res.json();
-  document.getElementById("results").innerText = JSON.stringify(data, null, 2);
+  try {
+    const res = await fetch(API_URL + "?action=results");
+
+    const text = await res.text();
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      document.getElementById("results").innerText = "Error:\n" + text;
+      return;
+    }
+
+    document.getElementById("results").innerText = JSON.stringify(data, null, 2);
+
+  } catch (err) {
+    document.getElementById("results").innerText = "取得エラー: " + err.message;
+  }
 }
 
+// 5秒ごとに更新
 setInterval(loadResults, 5000);
+
+// 初回ロード
+loadResults();
 </script>
 
 </body>
