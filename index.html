@@ -2,36 +2,41 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <!-- ethers（安定版） -->
+
+  <!-- ethers -->
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+
+  <!-- Chart.js（グラフ） -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
-  <h2>DAO Voting</h2>
+  <h2 id="title">DAO Voting</h2>
 
   <button onclick="connect()">Connect Wallet</button>
   <p id="address">Not connected</p>
 
-  <select id="choice">
-    <option value="A">A</option>
-    <option value="B">B</option>
-  </select>
+  <h3 id="proposal"></h3>
+
+  <select id="choice"></select>
 
   <button onclick="vote()">Vote</button>
 
   <h3>Results</h3>
-  <pre id="results">Loading...</pre>
+  <canvas id="chart" width="400" height="200"></canvas>
 
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbxEMJNjJz1AtSrHxWFEK83GqojYi5dlNPBonLcbW_JlORueT-OxhIPmEjhQmBdH7vJc/exec";
 
 let signer = null;
 let userAddress = null;
+let currentConfig = null;
+let chart = null;
 
-// ethers読み込みチェック
+// ethersチェック
 window.addEventListener("load", () => {
   if (typeof ethers === "undefined") {
-    alert("ethersの読み込みに失敗しています（CDNエラー）");
+    alert("ethersの読み込みに失敗しています");
   }
 });
 
@@ -56,7 +61,31 @@ async function connect() {
   }
 }
 
-// 投票処理
+// config取得（ここが自動化の核）
+async function loadConfig() {
+  const res = await fetch(API_URL + "?action=config");
+  const config = await res.json();
+
+  currentConfig = config;
+
+  // タイトル表示
+  document.getElementById("proposal").innerText = config.proposal_id;
+
+  // choices生成
+  const choices = config.choices.split(",");
+  const select = document.getElementById("choice");
+
+  select.innerHTML = "";
+
+  choices.forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = c;
+    opt.innerText = c;
+    select.appendChild(opt);
+  });
+}
+
+// 投票
 async function vote() {
   try {
     if (!signer) {
@@ -65,8 +94,7 @@ async function vote() {
     }
 
     const choice = document.getElementById("choice").value;
-
-    const message = "I vote in proposal_001";
+    const message = currentConfig.message;
 
     const signature = await signer.signMessage(message);
 
@@ -94,6 +122,8 @@ async function vote() {
 
     alert(JSON.stringify(data));
 
+    loadResults();
+
   } catch (err) {
     alert("投票エラー: " + err.message);
   }
@@ -103,28 +133,43 @@ async function vote() {
 async function loadResults() {
   try {
     const res = await fetch(API_URL + "?action=results");
+    const data = await res.json();
 
-    const text = await res.text();
-
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch (e) {
-      document.getElementById("results").innerText = "Error:\n" + text;
-      return;
-    }
-
-    document.getElementById("results").innerText = JSON.stringify(data, null, 2);
+    drawChart(data);
 
   } catch (err) {
-    document.getElementById("results").innerText = "取得エラー: " + err.message;
+    console.log(err);
   }
 }
 
-// 初回ロード
+// グラフ描画
+function drawChart(data) {
+  const labels = Object.keys(data);
+  const values = Object.values(data);
+
+  const ctx = document.getElementById("chart").getContext("2d");
+
+  if (chart) {
+    chart.destroy();
+  }
+
+  chart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: "Votes",
+        data: values
+      }]
+    }
+  });
+}
+
+// 初期ロード
+loadConfig();
 loadResults();
 
-// 5秒ごと更新
+// 自動更新
 setInterval(loadResults, 5000);
 </script>
 
