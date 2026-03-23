@@ -26,8 +26,11 @@ let userAddress = null;
 let currentConfig = null;
 let chart = null;
 
-window.addEventListener("load", () => {
-  loadConfig();
+// --------------------------
+// 初期ロード
+// --------------------------
+window.addEventListener("load", async () => {
+  await loadConfig();   // ← await で確実に config を取得してから描画
   loadResults();
   setInterval(loadResults, 5000);
 });
@@ -50,6 +53,7 @@ async function connectWallet() {
 async function loadConfig() {
   const res = await fetch(API_URL + "?action=config");
   currentConfig = await res.json();
+
   document.getElementById("proposal").innerText = currentConfig.proposal_id;
 
   const select = document.getElementById("choice");
