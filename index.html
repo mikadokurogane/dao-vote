@@ -1,77 +1,49 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>DAO NFT 投票</title>
-  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-  <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
-  <style>
-    body { font-family: sans-serif; max-width: 700px; margin: 30px auto; }
-    button { margin: 5px 0; padding: 8px 16px; }
-    #chart_div { margin-top: 20px; width: 100%; height: 400px; }
-  </style>
+  <title>DAO Voting</title>
 </head>
 <body>
+  <h2>DAO Voting</h2>
 
-<h2>DAO NFT 投票フォーム</h2>
+  <button onclick="connect()">Connect Wallet</button>
+  <p id="address"></p>
 
-<div>
-  <button id="connectButton">ウォレット接続</button>
-  <p id="walletAddress"></p>
-</div>
+  <select id="choice">
+    <option value="A">A</option>
+    <option value="B">B</option>
+  </select>
 
-<div>
-  <label>
-    選択肢：
-    <select id="choiceSelect">
-      <option value="A">A</option>
-      <option value="B">B</option>
-    </select>
-  </label>
-</div>
+  <button onclick="vote()">Vote</button>
 
-<div>
-  <button id="voteButton">投票する</button>
-  <p id="voteStatus"></p>
-</div>
+  <h3>Results</h3>
+  <pre id="results"></pre>
 
-<h3>リアルタイム結果</h3>
-<div id="results"></div>
-<div id="chart_div"></div>
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
 
 <script>
-let provider;
-let signer;
+const API = "GASのURLをここに";
+
 let userAddress;
 
-// 👇 Apps Script デプロイ URL に置き換える
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyw62W18akY_BCdn5plffK49SwZ_uLITzgmchb2iMhWmLN1Av48OikZ12g2kiOX97fS/exec";
+async function connect() {
+  const provider = new ethers.providers.Web3Provider(window.ethereum);
+  const accounts = await provider.send("eth_requestAccounts", []);
+  userAddress = accounts[0];
+  document.getElementById("address").innerText = userAddress;
+}
 
-// ウォレット接続
-document.getElementById("connectButton").onclick = async () => {
-  if (typeof window.ethereum === 'undefined') {
-    alert("MetaMaskが必要です");
-    return;
-  }
-  provider = new ethers.providers.Web3Provider(window.ethereum);
-  await provider.send("eth_requestAccounts", []);
-  signer = provider.getSigner();
-  userAddress = await signer.getAddress();
-  document.getElementById("walletAddress").innerText = "接続済み: " + userAddress;
-};
+async function vote() {
+  const provider = new ethers.providers.Web3Provider(window.ethereum);
+  const signer = provider.getSigner();
 
-// 投票
-document.getElementById("voteButton").onclick = async () => {
-  if (!signer) {
-    alert("ウォレットを接続してください");
-    return;
-  }
-  const choice = document.getElementById("choiceSelect").value;
+  const message = "I vote in proposal_001";
 
-  const message = `I vote in proposal_001\nNonce: 12345`;
   const signature = await signer.signMessage(message);
 
-  const res = await fetch(SCRIPT_URL, {
+  const choice = document.getElementById("choice").value;
+
+  const res = await fetch(API, {
     method: "POST",
     body: JSON.stringify({
       address: userAddress,
@@ -79,57 +51,21 @@ document.getElementById("voteButton").onclick = async () => {
       signature: signature
     })
   });
+
   const data = await res.json();
-  document.getElementById("voteStatus").innerText = data.result;
-
-  // 投票後すぐに結果更新
-  loadResults();
-};
-
-// Google Charts 初期化
-google.charts.load('current', {packages: ['corechart']});
-
-// リアルタイム結果取得
-async function loadResults() {
-  try {
-    const res = await fetch(SCRIPT_URL);
-    const data = await res.json();
-
-    // テキスト表示
-    let html = "";
-    for (let key in data) {
-      html += `${key}: ${data[key]}票<br>`;
-    }
-    document.getElementById("results").innerHTML = html;
-
-    // 棒グラフ用データ作成
-    const chartData = [['選択肢', '票数']];
-    for (let key in data) {
-      chartData.push([key, Number(data[key])]);
-    }
-
-    // グラフ描画
-    google.charts.setOnLoadCallback(() => {
-      const chart = new google.visualization.ColumnChart(document.getElementById('chart_div'));
-      chart.draw(google.visualization.arrayToDataTable(chartData), {
-        title: '投票結果',
-        legend: { position: 'none' },
-        vAxis: { minValue: 0 },
-        colors: ['#1f77b4']
-      });
-    });
-
-  } catch(e) {
-    document.getElementById("results").innerText = "結果を取得できません";
-    console.error(e);
-  }
+  alert(JSON.stringify(data));
 }
 
-// 3秒ごとに更新
-setInterval(loadResults, 3000);
-loadResults();
+async function loadResults() {
+  const res = await fetch(API + "?action=results");
+  const data = await res.json();
+
+  document.getElementById("results").innerText =
+    JSON.stringify(data, null, 2);
+}
+
+setInterval(loadResults, 5000);
 </script>
-  
 
 </body>
 </html>
