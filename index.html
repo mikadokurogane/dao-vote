@@ -6,12 +6,12 @@
   <!-- ethers -->
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 
-  <!-- Chart.js（グラフ） -->
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
-  <h2 id="title">DAO Voting</h2>
+  <h2>DAO Voting</h2>
 
   <button onclick="connect()">Connect Wallet</button>
   <p id="address">Not connected</p>
@@ -33,14 +33,18 @@ let userAddress = null;
 let currentConfig = null;
 let chart = null;
 
-// ethersチェック
+// =======================
+// 初期チェック
+// =======================
 window.addEventListener("load", () => {
   if (typeof ethers === "undefined") {
     alert("ethersの読み込みに失敗しています");
   }
 });
 
+// =======================
 // ウォレット接続
+// =======================
 async function connect() {
   try {
     if (!window.ethereum) {
@@ -61,31 +65,43 @@ async function connect() {
   }
 }
 
-// config取得（ここが自動化の核）
+// =======================
+// config取得
+// =======================
 async function loadConfig() {
-  const res = await fetch(API_URL + "?action=config");
-  const config = await res.json();
+  try {
+    const res = await fetch(API_URL + "?action=config");
+    const config = await res.json();
 
-  currentConfig = config;
+    if (!config || !config.choices) {
+      console.log("config未取得", config);
+      return;
+    }
 
-  // タイトル表示
-  document.getElementById("proposal").innerText = config.proposal_id;
+    currentConfig = config;
 
-  // choices生成
-  const choices = config.choices.split(",");
-  const select = document.getElementById("choice");
+    document.getElementById("proposal").innerText = config.proposal_id;
 
-  select.innerHTML = "";
+    const choices = config.choices.split(",");
+    const select = document.getElementById("choice");
 
-  choices.forEach(c => {
-    const opt = document.createElement("option");
-    opt.value = c;
-    opt.innerText = c;
-    select.appendChild(opt);
-  });
+    select.innerHTML = "";
+
+    choices.forEach(c => {
+      const opt = document.createElement("option");
+      opt.value = c;
+      opt.innerText = c;
+      select.appendChild(opt);
+    });
+
+  } catch (err) {
+    console.log("config取得エラー", err);
+  }
 }
 
+// =======================
 // 投票
+// =======================
 async function vote() {
   try {
     if (!signer) {
@@ -93,8 +109,24 @@ async function vote() {
       return;
     }
 
+    if (!currentConfig) {
+      alert("設定を読み込み中です。少し待ってください");
+      return;
+    }
+
     const choice = document.getElementById("choice").value;
+
+    if (!choice) {
+      alert("選択肢を選んでください");
+      return;
+    }
+
     const message = currentConfig.message;
+
+    if (!message) {
+      alert("messageが取得できていません");
+      return;
+    }
 
     const signature = await signer.signMessage(message);
 
@@ -121,15 +153,17 @@ async function vote() {
     }
 
     alert(JSON.stringify(data));
-
     loadResults();
 
   } catch (err) {
+    console.error(err);
     alert("投票エラー: " + err.message);
   }
 }
 
+// =======================
 // 結果取得
+// =======================
 async function loadResults() {
   try {
     const res = await fetch(API_URL + "?action=results");
@@ -138,11 +172,13 @@ async function loadResults() {
     drawChart(data);
 
   } catch (err) {
-    console.log(err);
+    console.log("結果取得エラー", err);
   }
 }
 
+// =======================
 // グラフ描画
+// =======================
 function drawChart(data) {
   const labels = Object.keys(data);
   const values = Object.values(data);
@@ -165,9 +201,15 @@ function drawChart(data) {
   });
 }
 
-// 初期ロード
-loadConfig();
-loadResults();
+// =======================
+// 初期化（重要）
+// =======================
+async function init() {
+  await loadConfig();
+  await loadResults();
+}
+
+init();
 
 // 自動更新
 setInterval(loadResults, 5000);
