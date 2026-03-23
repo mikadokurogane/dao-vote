@@ -1,56 +1,61 @@
-<div id="dao-vote-app">
-  <h2>DAO Voting</h2>
-  <button id="connectWalletBtn">Connect Wallet</button>
-  <p id="address">Not connected</p>
-
-  <h3 id="proposal"></h3>
-  <select id="choice"></select>
-  <button id="voteBtn">Vote</button>
-
-  <h3>Results</h3>
-  <canvas id="chart" width="400" height="200"></canvas>
-</div>
-
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>DAO Voting</title>
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  body { font-family: Arial; padding: 20px; }
+  select, button { margin: 5px 0; }
+</style>
+</head>
+<body>
+<h2>DAO Voting</h2>
+<button id="connectBtn">Connect Wallet</button>
+<p id="address">Not connected</p>
+
+<h3 id="proposal"></h3>
+<select id="choice"></select>
+<button id="voteBtn">Vote</button>
+
+<h3>Results</h3>
+<canvas id="chart" width="400" height="200"></canvas>
+
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbyYafvu_mVs5gGBUyP0Q_5BMZzpbDY2F1OaHehhzuMP4kwdNhP6OABXSarUqH3-hm2e/exec";
 let signer, userAddress, currentConfig, chart;
 
+// 初期ロード
 window.addEventListener("load", async () => {
   await loadConfig();
   await loadResults();
   setInterval(loadResults, 5000);
 });
 
-document.getElementById("connectWalletBtn").onclick = async () => {
-  if (!window.ethereum) return alert("MetaMaskをインストールしてください");
+// ウォレット接続
+document.getElementById("connectBtn").addEventListener("click", async () => {
+  if (!window.ethereum) { alert("MetaMaskをインストールしてください"); return; }
   const provider = new ethers.providers.Web3Provider(window.ethereum);
   await provider.send("eth_requestAccounts", []);
   signer = provider.getSigner();
   userAddress = await signer.getAddress();
   document.getElementById("address").innerText = userAddress;
-};
+});
 
-document.getElementById("voteBtn").onclick = async () => {
-  if (!signer) return alert("ウォレットを接続してください");
-  const choice = document.getElementById("choice").value;
-  const signature = await signer.signMessage(currentConfig.message);
-
-  const res = await fetch(API_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ address: userAddress, choice, signature })
-  });
-  const data = await res.json();
-  alert(JSON.stringify(data));
-  await loadResults();
-};
-
+// 設定ロード
 async function loadConfig() {
-  const res = await fetch(API_URL + "?action=config");
-  currentConfig = await res.json();
-  document.getElementById("proposal").innerText = currentConfig.proposal_id;
+  const res = await fetch("/exec"); // 同一GASオリジンなのでCORS不要
+  const html = await res.text(); // GAS doGet で HTML が返る
+  const tempDiv = document.createElement("div");
+  tempDiv.innerHTML = html;
+
+  // ここではスプレッドシートから JS 側に選択肢を渡すため GAS doGet で choices を埋め込む方法もあり
+  // 簡易版として choices を手動設定
+  currentConfig = {
+    proposal_id: "proposal_001",
+    message: "Vote for proposal_001",
+    choices: "A,B,C"
+  };
 
   const select = document.getElementById("choice");
   select.innerHTML = "";
@@ -60,16 +65,38 @@ async function loadConfig() {
     opt.innerText = c.trim();
     select.appendChild(opt);
   });
+
+  document.getElementById("proposal").innerText = currentConfig.proposal_id;
 }
 
-async function loadResults() {
-  const res = await fetch(API_URL + "?action=results");
+// 投票
+document.getElementById("voteBtn").addEventListener("click", async () => {
+  if (!signer) { alert("ウォレットを接続してください"); return; }
+  const choice = document.getElementById("choice").value;
+  const signature = await signer.signMessage(currentConfig.message);
+
+  const res = await fetch("/exec", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ address: userAddress, choice, signature })
+  });
+
   const data = await res.json();
+  alert(JSON.stringify(data));
+  await loadResults();
+});
+
+// 結果取得
+async function loadResults() {
+  const res = await fetch("/exec"); // HTML 内から fetch する場合
+  const data = await res.json ? await res.json() : {A: 0, B:0, C:0}; // 仮
   const ctx = document.getElementById("chart").getContext("2d");
   if (chart) chart.destroy();
   chart = new Chart(ctx, {
     type: "bar",
-    data: { labels: Object.keys(data), datasets: [{ label: "Votes", data: Object.values(data) }] }
+    data: { labels: ["A","B","C"], datasets: [{ label: "Votes", data: [data.A||0, data.B||0, data.C||0] }] }
   });
 }
 </script>
+</body>
+</html>
