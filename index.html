@@ -24,6 +24,9 @@ select { padding: 5px; }
 <canvas id="chart" width="400" height="200"></canvas>
 
 <script>
+// GASから埋め込まれたCONFIGを取得
+const CONFIG = <?= config ?>;
+
 let signer, userAddress, chart;
 
 // MetaMask 接続
@@ -36,7 +39,7 @@ document.getElementById("connectBtn").onclick = async () => {
   document.getElementById("address").innerText = userAddress;
 };
 
-// GASに埋め込まれたCONFIGを使って選択肢描画
+// 選択肢描画
 const select = document.getElementById("choice");
 select.innerHTML = "";
 if (CONFIG.choices) {
