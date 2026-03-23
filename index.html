@@ -5,10 +5,6 @@
 <title>DAO Voting</title>
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<style>
-body { font-family:sans-serif; padding:20px; }
-button { margin:5px 0; }
-</style>
 </head>
 <body>
 
@@ -24,67 +20,67 @@ button { margin:5px 0; }
 <canvas id="chart" width="400" height="200"></canvas>
 
 <script>
-// GASテンプレート変数として展開
-var CONFIG = <?= html.config ?>;
-let signer, userAddress, chart;
+  // GAS で埋め込まれた config を安全に JS に展開
+  var CONFIG = JSON.parse('<?= html.config ?>');
 
-window.onload = () => {
-  renderChoices();
-  loadResults();
-  setInterval(loadResults, 5000);
-};
+  let signer, userAddress, chart;
 
-function renderChoices() {
-  const select = document.getElementById("choice");
-  select.innerHTML = "";
-  CONFIG.choices.split(",").forEach(c=>{
-    const opt = document.createElement("option");
-    opt.value = c.trim();
-    opt.innerText = c.trim();
-    select.appendChild(opt);
-  });
-  document.getElementById("proposal").innerText = CONFIG.proposal_id;
-}
-
-async function connectWallet() {
-  if(!window.ethereum){ alert("MetaMask required"); return; }
-  const provider = new ethers.providers.Web3Provider(window.ethereum);
-  await provider.send("eth_requestAccounts", []);
-  signer = provider.getSigner();
-  userAddress = await signer.getAddress();
-  document.getElementById("address").innerText = userAddress;
-}
-
-async function vote() {
-  if(!signer){ alert("Connect wallet first"); return; }
-  const choice = document.getElementById("choice").value;
-  const signature = await signer.signMessage(CONFIG.message);
-
-  fetch("", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({ address:userAddress, choice, signature })
-  })
-  .then(r=>r.json())
-  .then(r=>{
-    if(r.success) alert("Vote Success");
-    else alert("Vote Error: "+r.error);
+  window.addEventListener("load", async () => {
+    loadChoices();
     loadResults();
+    setInterval(loadResults, 5000);
   });
-}
 
-function loadResults() {
-  fetch("?action=results")
-    .then(r=>r.json())
-    .then(data=>{
-      const ctx = document.getElementById("chart").getContext("2d");
-      if(chart) chart.destroy();
-      chart = new Chart(ctx,{
-        type:"bar",
-        data:{ labels:Object.keys(data), datasets:[{ label:"Votes", data:Object.values(data) }] }
-      });
+  function loadChoices() {
+    document.getElementById("proposal").innerText = CONFIG.proposal_id;
+    const select = document.getElementById("choice");
+    select.innerHTML = "";
+    CONFIG.choices.split(",").forEach(c => {
+      const opt = document.createElement("option");
+      opt.value = c.trim();
+      opt.innerText = c.trim();
+      select.appendChild(opt);
     });
-}
+  }
+
+  async function connectWallet() {
+    if(!window.ethereum){ alert("MetaMask required"); return; }
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    await provider.send("eth_requestAccounts", []);
+    signer = provider.getSigner();
+    userAddress = await signer.getAddress();
+    document.getElementById("address").innerText = userAddress;
+  }
+
+  async function vote() {
+    if(!signer){ alert("Connect wallet first"); return; }
+    const choice = document.getElementById("choice").value;
+    const signature = await signer.signMessage(CONFIG.message);
+
+    const res = await fetch("", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ address:userAddress, choice, signature })
+    });
+
+    const data = await res.json();
+    if(data.success) alert("Vote Success");
+    else alert("Vote Error: "+data.error);
+
+    loadResults();
+  }
+
+  async function loadResults() {
+    const res = await fetch("?action=results");
+    const data = await res.json();
+
+    const ctx = document.getElementById("chart").getContext("2d");
+    if(chart) chart.destroy();
+    chart = new Chart(ctx, {
+      type:"bar",
+      data: { labels:Object.keys(data), datasets:[{ label:"Votes", data:Object.values(data) }] }
+    });
+  }
 </script>
 </body>
 </html>
