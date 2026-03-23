@@ -2,7 +2,12 @@
 <html>
 <head>
   <title>DAO Voting</title>
+
+  <!-- deferで確実に後から読み込み -->
+  <script defer src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
 <body>
   <h2>DAO Voting</h2>
 
@@ -19,38 +24,35 @@
   <h3>Results</h3>
   <pre id="results"></pre>
 
-  <!-- 📊 グラフ -->
   <canvas id="chart" width="400" height="200"></canvas>
 
-  <!-- ethers -->
-  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
-
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 <script>
-// 🔥 MetaMaskチェック
-if (!window.ethereum) {
-  alert("MetaMaskが必要です");
-}
-
 const API = "GASのURLをここに";
 
 let userAddress;
-let chart; // グラフ保持
+let chart;
 
-// 🔗 ウォレット接続（安全版）
+// 🔥 ethers読み込み待ち（これが最重要）
+async function waitForEthers() {
+  while (typeof ethers === "undefined") {
+    await new Promise(r => setTimeout(r, 50));
+  }
+}
+
+// 🔗 ウォレット接続
 async function connect() {
+  await waitForEthers();
+
   try {
     if (!window.ethereum) {
-      alert("MetaMaskがインストールされていません");
+      alert("MetaMaskが必要です");
       return;
     }
 
     const provider = new ethers.providers.Web3Provider(window.ethereum);
     const accounts = await provider.send("eth_requestAccounts", []);
-    userAddress = accounts[0];
 
+    userAddress = accounts[0];
     document.getElementById("address").innerText = userAddress;
 
   } catch (e) {
@@ -61,6 +63,8 @@ async function connect() {
 
 // 🗳 投票
 async function vote() {
+  await waitForEthers();
+
   try {
     if (!userAddress) {
       alert("先にウォレットを接続してください");
@@ -71,7 +75,6 @@ async function vote() {
     const signer = provider.getSigner();
 
     const message = "I vote in proposal_001";
-
     const signature = await signer.signMessage(message);
 
     const choice = document.getElementById("choice").value;
@@ -100,11 +103,9 @@ async function loadResults() {
     const res = await fetch(API + "?action=results");
     const data = await res.json();
 
-    // テキスト表示
     document.getElementById("results").innerText =
       JSON.stringify(data, null, 2);
 
-    // グラフ描画
     drawChart(data);
 
   } catch (e) {
@@ -119,10 +120,7 @@ function drawChart(data) {
 
   const ctx = document.getElementById("chart").getContext("2d");
 
-  // 既存グラフ削除
-  if (chart) {
-    chart.destroy();
-  }
+  if (chart) chart.destroy();
 
   chart = new Chart(ctx, {
     type: "bar",
@@ -136,15 +134,13 @@ function drawChart(data) {
     options: {
       responsive: true,
       scales: {
-        y: {
-          beginAtZero: true
-        }
+        y: { beginAtZero: true }
       }
     }
   });
 }
 
-// ⏱ 5秒ごと更新
+// ⏱ 自動更新
 setInterval(loadResults, 5000);
 
 </script>
