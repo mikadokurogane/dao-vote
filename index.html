@@ -1,11 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>DAO Voting</title>
-
-  <!-- ★ここが超重要 -->
-  <script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
 </head>
 
 <body>
@@ -24,52 +20,33 @@
   <h3>Results</h3>
   <pre id="results"></pre>
 
-  <canvas id="chart"></canvas>
-
 <script>
-if (typeof ethers === "undefined") {
-  alert("ethersの読み込み失敗");
-}
+const API_URL = "GASのURLをここに";
 
-const API = "ここにGASのURL";
+let signer, userAddress;
 
-let userAddress;
-let chart;
-
-// 接続
 async function connect() {
-  if (!window.ethereum) {
-    alert("MetaMaskが必要です");
-    return;
-  }
-
   const provider = new ethers.providers.Web3Provider(window.ethereum);
-  const accounts = await provider.send("eth_requestAccounts", []);
+  await provider.send("eth_requestAccounts", []);
+  signer = provider.getSigner();
+  userAddress = await signer.getAddress();
 
-  userAddress = accounts[0];
   document.getElementById("address").innerText = userAddress;
 }
 
-// 投票
 async function vote() {
-  if (!userAddress) {
-    alert("先に接続してください");
-    return;
-  }
-
-  const provider = new ethers.providers.Web3Provider(window.ethereum);
-  const signer = provider.getSigner();
-
-  const signature = await signer.signMessage("I vote in proposal_001");
-
   const choice = document.getElementById("choice").value;
 
-  const res = await fetch(API, {
+  const message = "I vote in proposal_001";
+
+  const signature = await signer.signMessage(message);
+
+  const res = await fetch(API_URL, {
     method: "POST",
     body: JSON.stringify({
       address: userAddress,
-      choice,
-      signature
+      choice: choice,
+      signature: signature
     })
   });
 
@@ -77,33 +54,11 @@ async function vote() {
   alert(JSON.stringify(data));
 }
 
-// 結果
+// 結果取得
 async function loadResults() {
-  const res = await fetch(API + "?action=results");
+  const res = await fetch(API_URL + "?action=results");
   const data = await res.json();
-
-  document.getElementById("results").innerText =
-    JSON.stringify(data, null, 2);
-
-  drawChart(data);
-}
-
-// グラフ
-function drawChart(data) {
-  const ctx = document.getElementById("chart").getContext("2d");
-
-  if (chart) chart.destroy();
-
-  chart = new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels: Object.keys(data),
-      datasets: [{
-        label: "Votes",
-        data: Object.values(data)
-      }]
-    }
-  });
+  document.getElementById("results").innerText = JSON.stringify(data, null, 2);
 }
 
 setInterval(loadResults, 5000);
